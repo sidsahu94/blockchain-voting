@@ -10,8 +10,9 @@
     input, button, select { margin: 5px 0; padding: 8px; width: 100%; }
     button { background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px; }
     button:hover { background: #0056b3; }
-    pre { background: #222; color: #0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    canvas { background: #fff; padding: 10px; border-radius: 8px; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <h1>🗳 Blockchain Voting System</h1>
@@ -43,11 +44,22 @@
     <p><b>Election ID:</b> <span id="electionId"></span></p>
   </div>
 
+  <!-- List Elections -->
+  <div class="card">
+    <h2>Available Elections</h2>
+    <button onclick="listElections()">Load Elections</button>
+    <pre id="electionsList"></pre>
+  </div>
+
   <!-- Vote -->
   <div class="card">
     <h2>Vote</h2>
-    <input id="voteElectionId" placeholder="Election ID" />
-    <input id="voteCandidate" placeholder="Candidate" />
+    <label for="voteElectionSelect">Election</label>
+    <select id="voteElectionSelect" onchange="loadCandidates()"></select>
+
+    <label for="voteCandidateSelect">Candidate</label>
+    <select id="voteCandidateSelect"></select>
+
     <button onclick="castVote()">Vote</button>
   </div>
 
@@ -60,9 +72,9 @@
   <!-- Tally -->
   <div class="card">
     <h2>Election Tally</h2>
-    <input id="tallyElectionId" placeholder="Election ID" />
+    <select id="tallyElectionSelect"></select>
     <button onclick="getTally()">Get Tally</button>
-    <pre id="tallyResult"></pre>
+    <canvas id="tallyChart" style="max-width: 600px; margin-top: 20px;"></canvas>
   </div>
 
   <!-- Blockchain -->
@@ -74,6 +86,8 @@
 
   <script>
     let token = "";
+    let electionsCache = [];
+    let tallyChart;
 
     async function register() {
       const res = await fetch("/auth/register", {
@@ -85,7 +99,7 @@
           password: document.getElementById("regPass").value
         })
       });
-      alert(await res.text());
+      alert((await res.json()).message || "Error");
     }
 
     async function login() {
@@ -100,6 +114,7 @@
       const data = await res.json();
       token = data.token;
       document.getElementById("tokenDisplay").innerText = token || "Login failed";
+      loadElectionsForVote(); // refresh elections after login
     }
 
     async function createElection() {
@@ -118,19 +133,69 @@
       document.getElementById("electionId").innerText = data.id || "Error";
     }
 
+    async function listElections() {
+      const res = await fetch("/elections");
+      const data = await res.json();
+      electionsCache = data;
+      document.getElementById("electionsList").innerText = JSON.stringify(data, null, 2);
+    }
+
+    async function loadElectionsForVote() {
+      const res = await fetch("/elections");
+      const elections = await res.json();
+      electionsCache = elections;
+
+      const electionSelect = document.getElementById("voteElectionSelect");
+      const tallySelect = document.getElementById("tallyElectionSelect");
+      electionSelect.innerHTML = "";
+      tallySelect.innerHTML = "";
+
+      elections.forEach(e => {
+        const opt1 = document.createElement("option");
+        opt1.value = e.id;
+        opt1.textContent = `${e.name} (${e.id})`;
+        opt1.dataset.candidates = JSON.stringify(e.candidates);
+        electionSelect.appendChild(opt1);
+
+        const opt2 = document.createElement("option");
+        opt2.value = e.id;
+        opt2.textContent = e.name;
+        tallySelect.appendChild(opt2);
+      });
+
+      if (elections.length > 0) loadCandidates();
+    }
+
+    function loadCandidates() {
+      const electionSelect = document.getElementById("voteElectionSelect");
+      const selected = electionSelect.options[electionSelect.selectedIndex];
+      const candidates = JSON.parse(selected.dataset.candidates);
+
+      const candidateSelect = document.getElementById("voteCandidateSelect");
+      candidateSelect.innerHTML = "";
+      candidates.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        candidateSelect.appendChild(opt);
+      });
+    }
+
     async function castVote() {
+      const electionId = document.getElementById("voteElectionSelect").value;
+      const candidate = document.getElementById("voteCandidateSelect").value;
+
       const res = await fetch("/vote", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer " + token
         },
-        body: JSON.stringify({
-          electionId: document.getElementById("voteElectionId").value,
-          candidate: document.getElementById("voteCandidate").value
-        })
+        body: JSON.stringify({ electionId, candidate })
       });
-      alert(await res.text());
+
+      const data = await res.json();
+      alert(data.message || data.error);
     }
 
     async function mine() {
@@ -139,14 +204,46 @@
         headers: { "Authorization": "Bearer " + token }
       });
       const data = await res.json();
-      alert("Mined block: " + JSON.stringify(data));
+      alert("Mined block: " + JSON.stringify(data.block));
     }
 
     async function getTally() {
-      const id = document.getElementById("tallyElectionId").value;
+      const id = document.getElementById("tallyElectionSelect").value;
       const res = await fetch("/tally/" + id);
       const data = await res.json();
-      document.getElementById("tallyResult").innerText = JSON.stringify(data, null, 2);
+
+      if (data.length === 0) {
+        alert("No votes found for this election");
+        return;
+      }
+
+      const labels = data.map(d => d.candidate);
+      const votes = data.map(d => d.votes);
+      const ctx = document.getElementById("tallyChart").getContext("2d");
+
+      if (tallyChart) tallyChart.destroy();
+
+      tallyChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Votes",
+            data: votes,
+            backgroundColor: "rgba(54, 162, 235, 0.6)",
+            borderColor: "rgba(54, 162, 235, 1)",
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: "Election Results" }
+          },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
     }
 
     async function getChain() {
@@ -154,6 +251,10 @@
       const data = await res.json();
       document.getElementById("chainResult").innerText = JSON.stringify(data, null, 2);
     }
+
+    // Load elections on page load
+    window.onload = loadElectionsForVote;
   </script>
 </body>
 </html>
+
