@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: blockchain-voting
+    env: node
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        value: supersecret_change_me
+      - key: DB_FILE
+        value: ./data.db
+      - key: SALT_ROUNDS
+        value: 10

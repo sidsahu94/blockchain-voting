@@ -2,134 +2,174 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { v4 as uuid } from "uuid";
-import crypto from "crypto";
-
-import { Blockchain } from "./blockchain.js";
-import { getDb } from "./db.js";
+import bcrypt from "bcryptjs";
+import sqlite3 from "sqlite3";
+import { open } from "sqlite";
+import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
-
 const app = express();
+const PORT = process.env.PORT || 4000;
+const SECRET = process.env.JWT_SECRET || "supersecret";
+
+// middleware
 app.use(cors());
-app.use(express.json());
 app.use(morgan("dev"));
+app.use(express.json());
 app.use(express.static("public"));
 
-const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET;
-const DB_FILE = process.env.DB_FILE;
-const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS, 10);
+// DB setup
+let db;
+(async () => {
+  db = await open({
+    filename: "./voting.db",
+    driver: sqlite3.Database,
+  });
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      email TEXT UNIQUE,
+      password TEXT
+    );
+    CREATE TABLE IF NOT EXISTS elections (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      candidates TEXT
+    );
+    CREATE TABLE IF NOT EXISTS votes (
+      id TEXT PRIMARY KEY,
+      electionId TEXT,
+      candidate TEXT,
+      userId TEXT
+    );
+  `);
+})();
 
-const chain = new Blockchain();
-const dbPromise = getDb(DB_FILE);
-
-// JWT auth helpers
-function signJwt(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
-}
-function auth(req, res, next) {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Missing token" });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
+// Blockchain setup
+class Block {
+  constructor(index, timestamp, data, previousHash = "") {
+    this.index = index;
+    this.timestamp = timestamp;
+    this.data = data;
+    this.previousHash = previousHash;
+    this.hash = this.calculateHash();
+  }
+  calculateHash() {
+    return `${this.index}${this.timestamp}${JSON.stringify(this.data)}${this.previousHash}`;
   }
 }
-function sha256(data) {
-  return crypto.createHash("sha256").update(data).digest("hex");
+
+class Blockchain {
+  constructor() {
+    this.chain = [this.createGenesisBlock()];
+    this.pendingVotes = [];
+  }
+  createGenesisBlock() {
+    return new Block(0, Date.now(), "Genesis Block", "0");
+  }
+  getLatestBlock() {
+    return this.chain[this.chain.length - 1];
+  }
+  addBlock(block) {
+    block.previousHash = this.getLatestBlock().hash;
+    block.hash = block.calculateHash();
+    this.chain.push(block);
+  }
+  minePendingVotes() {
+    const block = new Block(
+      this.chain.length,
+      Date.now(),
+      this.pendingVotes,
+      this.getLatestBlock().hash
+    );
+    this.addBlock(block);
+    this.pendingVotes = [];
+    return block;
+  }
+}
+const votingBlockchain = new Blockchain();
+
+// auth middleware
+function authenticateToken(req, res, next) {
+  const header = req.headers["authorization"];
+  const token = header && header.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "No token" });
+  jwt.verify(token, SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Invalid token" });
+    req.user = user;
+    next();
+  });
 }
 
-// Register
+// routes
 app.post("/auth/register", async (req, res) => {
   const { name, email, password } = req.body;
-  const db = await dbPromise;
-  const id = uuid();
-  const hash = await bcrypt.hash(password, SALT_ROUNDS);
-  const created_at = new Date().toISOString();
+  const hash = await bcrypt.hash(password, 10);
   try {
-    await db.run(
-      "INSERT INTO voters VALUES (?,?,?,?,?)",
+    const id = uuidv4();
+    await db.run("INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)", [
       id,
       name,
-      email.toLowerCase(),
+      email,
       hash,
-      created_at
-    );
-    res.json({ id, name, email });
+    ]);
+    res.json({ message: "User registered" });
   } catch {
-    res.status(400).json({ error: "Email already registered" });
+    res.status(400).json({ error: "User already exists" });
   }
 });
 
-// Login
 app.post("/auth/login", async (req, res) => {
   const { email, password } = req.body;
-  const db = await dbPromise;
-  const row = await db.get("SELECT * FROM voters WHERE email=?", [
-    email.toLowerCase(),
-  ]);
-  if (!row) return res.status(400).json({ error: "Invalid credentials" });
-  const ok = await bcrypt.compare(password, row.password_hash);
-  if (!ok) return res.status(400).json({ error: "Invalid credentials" });
-  const token = signJwt({ id: row.id, email: row.email });
+  const user = await db.get("SELECT * FROM users WHERE email = ?", [email]);
+  if (!user) return res.status(400).json({ error: "Invalid credentials" });
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(400).json({ error: "Invalid credentials" });
+  const token = jwt.sign({ id: user.id, email: user.email }, SECRET, { expiresIn: "1h" });
   res.json({ token });
 });
 
-// Create election
-app.post("/elections", auth, async (req, res) => {
+app.post("/elections", authenticateToken, async (req, res) => {
   const { name, candidates } = req.body;
-  const db = await dbPromise;
-  const id = uuid();
-  const created_at = new Date().toISOString();
-  await db.run(
-    "INSERT INTO elections VALUES (?,?,?,?,?,?,?)",
+  const id = uuidv4();
+  await db.run("INSERT INTO elections (id, name, candidates) VALUES (?, ?, ?)", [
     id,
     name,
     JSON.stringify(candidates),
-    new Date().toISOString(),
-    new Date(Date.now() + 86400000).toISOString(),
-    req.user.id,
-    created_at
-  );
+  ]);
   res.json({ id, name, candidates });
 });
 
-// Vote
-app.post("/vote", auth, async (req, res) => {
+app.post("/vote", authenticateToken, async (req, res) => {
   const { electionId, candidate } = req.body;
-  const db = await dbPromise;
-  const already = await db.get(
-    "SELECT * FROM votes_guard WHERE election_id=? AND voter_id=?",
+  const voteId = uuidv4();
+  await db.run("INSERT INTO votes (id, electionId, candidate, userId) VALUES (?, ?, ?, ?)", [
+    voteId,
     electionId,
-    req.user.id
-  );
-  if (already) return res.status(400).json({ error: "Already voted" });
-  const voterHash = sha256(req.user.id + electionId);
-  chain.addTransaction({ electionId, candidate, voterHash });
-  await db.run("INSERT INTO votes_guard VALUES (?,?,?)", electionId, req.user.id, new Date().toISOString());
-  res.json({ ok: true });
+    candidate,
+    req.user.id,
+  ]);
+  votingBlockchain.pendingVotes.push({ electionId, candidate, userId: req.user.id });
+  res.json({ message: "Vote submitted" });
 });
 
-// Mine
-app.post("/mine", auth, (req, res) => {
-  const block = chain.minePendingTransactions();
-  if (!block) return res.json({ message: "No pending votes" });
-  res.json(block);
+app.post("/mine", authenticateToken, (req, res) => {
+  const block = votingBlockchain.minePendingVotes();
+  res.json({ message: "Block mined", block });
 });
 
-// Tally
-app.get("/tally/:id", (req, res) => {
-  res.json(chain.tally(req.params.id));
+app.get("/tally/:id", async (req, res) => {
+  const { id } = req.params;
+  const rows = await db.all("SELECT candidate, COUNT(*) as votes FROM votes WHERE electionId = ? GROUP BY candidate", [id]);
+  res.json(rows);
 });
 
-// Chain view
 app.get("/chain", (req, res) => {
-  res.json(chain.chain);
+  res.json(votingBlockchain.chain);
 });
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
