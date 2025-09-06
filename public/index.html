@@ -1,54 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blockchain Voting System</title>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    /* ===== Global Styles ===== */
-    /* * {
-      box-sizing: border-box;
-      transition: all 0.3s ease;
-    } */
-     * {
-    box-sizing: border-box;
-    transition: all 0.3s ease;
-  }
-
-    /* body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      background: linear-gradient(to right, #f7f7f7, #e0e0ff);
-      min-height: 100vh;
-      color: #333;
-    } */
-     body {
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blockchain Voting System</title>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  * { box-sizing: border-box; transition: all 0.3s ease; }
+  body {
     font-family: 'Segoe UI', sans-serif;
     margin: 0;
     padding: 0;
-    background: linear-gradient(to right, #f7f7f7, #fff8e1); /* subtle golden tint */
+    background: linear-gradient(to right, #f7f7f7, #fff8e1);
     min-height: 100vh;
     color: #333;
   }
-
-    /* header {
-      background: linear-gradient(to right, hsl(269, 85%, 43%), #2575fc);
-      color: #fff;
-      padding: 20px 10px;
-      text-align: center;
-      font-size: 28px;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-      animation: headerFade 1s ease forwards;
-    } */
-      header {
-    background: linear-gradient(to right, #6a11cb, #FFD700); /* golden gradient */
+  header {
+    background: linear-gradient(to right, #6a11cb, #FFD700);
     color: #fff;
     padding: 20px 10px;
     text-align: center;
@@ -60,30 +30,13 @@
     z-index: 1000;
     animation: headerFade 1s ease forwards;
   }
-
-    @keyframes headerFade {
-      from { opacity: 0; transform: translateY(-20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .container {
-      max-width: 1000px;
-      margin: 20px auto;
-      padding: 10px;
-    }
-
-    /* .card {
-      background: linear-gradient(145deg, #fff, #f0f0ff);
-      border-radius: 15px;
-      padding: 25px;
-      margin-bottom: 25px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-      transform: translateY(0);
-      transition: 0.4s;
-      border: 1px solid #ddd;
-    } */
-     .card {
-    background: linear-gradient(145deg, #fff, #fffbe6); /* soft golden tint */
+  @keyframes headerFade {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .container { max-width: 1000px; margin: 20px auto; padding: 10px; }
+  .card {
+    background: linear-gradient(145deg, #fff, #fffbe6);
     border-radius: 15px;
     padding: 25px;
     margin-bottom: 25px;
@@ -91,48 +44,43 @@
     transform: translateY(0);
     transition: 0.4s;
     border: 1px solid #ddd;
+    position: relative;
   }
-
-    .card:hover {
-      box-shadow: 0 12px 25px rgba(0,0,0,0.2);
-      transform: translateY(-5px);
-      border-color: #8e2de2;
-    }
-
-    h2 {
-      color: #6a11cb;
-      margin-top: 0;
-      font-size: 24px;
-      text-shadow: 1px 1px 2px #aaa;
-    }
-
-    input, select, button {
-      margin: 10px 0;
-      padding: 12px;
-      width: 100%;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-      outline: none;
-    }
-
-    input:focus, select:focus {
-      border-color: #6a11cb;
-      box-shadow: 0 0 10px rgba(106,17,203,0.3);
-    }
-
-    /* button {
-      background: linear-gradient(to right, #6a11cb, #2575fc);
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 16px;
-      box-shadow: 0 5px 15px rgba(106,17,203,0.3);
-      transition: 0.4s;
-    } */
-     button {
-    background: linear-gradient(to right, #6a11cb, #FFD700); /* golden gradient */
+  .card:hover {
+    box-shadow: 0 12px 25px rgba(0,0,0,0.2);
+    transform: translateY(-5px);
+    border-color: #8e2de2;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    background: linear-gradient(45deg, #6a11cb, #2575fc, #6a11cb, #2575fc);
+    border-radius: 15px;
+    z-index: -1;
+    opacity: 0.3;
+    animation: borderMove 4s linear infinite;
+  }
+  @keyframes borderMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 400% 0; }
+  }
+  h2 { color: #6a11cb; margin-top: 0; font-size: 24px; text-shadow: 1px 1px 2px #aaa; }
+  input, select, button {
+    margin: 10px 0;
+    padding: 12px;
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+    outline: none;
+  }
+  input:focus, select:focus {
+    border-color: #6a11cb;
+    box-shadow: 0 0 10px rgba(106,17,203,0.3);
+  }
+  button {
+    background: linear-gradient(to right, #6a11cb, #FFD700);
     color: white;
     border: none;
     cursor: pointer;
@@ -141,257 +89,288 @@
     box-shadow: 0 5px 15px rgba(255,215,0,0.3);
     transition: 0.4s;
   }
-
-    button:hover {
-      background: linear-gradient(to right, #2575fc, #6a11cb);
-      transform: scale(1.05);
-      box-shadow: 0 8px 20px rgba(106,17,203,0.5);
-    }
-
-    pre {
-      background: #222;
-      color: #0f0;
-      padding: 15px;
-      border-radius: 10px;
-      overflow-x: auto;
-      font-size: 14px;
-    }
-
-    .hidden { display: none; }
-
-    
-    .card::before {
-      content: '';
-      position: absolute;
-      top: -2px; left: -2px; right: -2px; bottom: -2px;
-      background: linear-gradient(45deg, #6a11cb, #2575fc, #6a11cb, #2575fc);
-      border-radius: 15px;
-      z-index: -1;
-      opacity: 0.3;
-      animation: borderMove 4s linear infinite;
-    } 
-     
-
-
-    @keyframes borderMove {
-      0% { background-position: 0 0; }
-      100% { background-position: 400% 0; }
-    }
-
-    /* Responsive */
-    @media(max-width: 768px){
-      h2 { font-size: 20px; }
-      body { font-size: 14px; }
-      .card { padding: 20px; }
-      input, select, button { padding: 10px; font-size: 14px; }
-    }
-
-    /* Small button hover effect */
-    button:active {
-      transform: scale(0.97);
-      box-shadow: 0 3px 10px rgba(106,17,203,0.3);
-    }
-  </style>
+  button:hover {
+    background: linear-gradient(to right, #2575fc, #6a11cb);
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(106,17,203,0.5);
+  }
+  button:active {
+    transform: scale(0.97);
+    box-shadow: 0 3px 10px rgba(106,17,203,0.3);
+  }
+  pre {
+    background: #222;
+    color: #0f0;
+    padding: 15px;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-size: 14px;
+  }
+  .hidden { display: none; }
+  @media(max-width: 768px){
+    h2 { font-size: 20px; }
+    body { font-size: 14px; }
+    .card { padding: 20px; }
+    input, select, button { padding: 10px; font-size: 14px; }
+  }
+</style>
 </head>
 <body>
-  <header>🗳 Blockchain Voting System</header>
-  <div class="container">
+<header>🗳 Blockchain Voting System</header>
+<div class="container">
 
-    <!-- Login/Register -->
-    <div class="card" id="authCard">
-      <h2>Register</h2>
-      <input id="regName" placeholder="Name" />
-      <input id="regEmail" placeholder="Email" />
-      <input id="regPass" placeholder="Password" type="password" />
-      <select id="regRole">
-        <option value="voter">Voter</option>
-        <option value="admin">Admin</option>
-      </select>
-      <button onclick="register()">Register</button>
+  <!-- Login/Register -->
+  <div class="card" id="authCard">
+    <h2>Register</h2>
+    <input id="regName" placeholder="Name" />
+    <input id="regEmail" placeholder="Email" />
+    <input id="regPass" placeholder="Password" type="password" />
+    <select id="regRole">
+      <option value="voter">Voter</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button onclick="register()">Register</button>
 
-      <hr>
+    <hr>
 
-      <h2>Login</h2>
-      <input id="loginEmail" placeholder="Email" />
-      <input id="loginPass" placeholder="Password" type="password" />
-      <button onclick="login()">Login</button>
-    </div>
-
-    <!-- Dashboard -->
-    <div id="dashboard" class="hidden">
-
-      <div class="card">
-        <h2>Welcome <span id="userRole"></span></h2>
-        <button onclick="logout()">Logout</button>
-      </div>
-
-      <!-- Admin Controls -->
-      <div class="card" id="adminControls">
-        <h2>Create Election</h2>
-        <input id="electionName" placeholder="Election Name" />
-        <input id="candidates" placeholder="Candidates (comma separated)" />
-        <button onclick="createElection()">Create</button>
-        <p><b>Election ID:</b> <span id="electionId"></span></p>
-      </div>
-
-      <!-- Vote Section -->
-      <div class="card" id="voteCard">
-        <h2>Vote in Election</h2>
-        <select id="voteElectionSelect"></select>
-        <select id="voteCandidateSelect"></select>
-        <button onclick="castVote()">Submit Vote</button>
-      </div>
-
-      <!-- Tally -->
-      <div class="card">
-        <h2>Election Tally</h2>
-        <select id="tallyElectionSelect"></select>
-        <button onclick="getTally()">View Tally</button>
-        <canvas id="tallyChart" width="400" height="200"></canvas>
-        <pre id="tallyResult"></pre>
-      </div>
-
-      <!-- Mine Blockchain -->
-      <div class="card" id="mineCard">
-        <h2>Mine Pending Votes</h2>
-        <button onclick="mine()">Mine Votes</button>
-        <pre id="mineResult"></pre>
-      </div>
-
-      <!-- Blockchain -->
-      <div class="card">
-        <h2>Blockchain</h2>
-        <button onclick="getChain()">View Blockchain</button>
-        <pre id="chainResult"></pre>
-      </div>
-
-      <!-- Download votes (Admin) -->
-      <div class="card" id="downloadCard">
-        <h2>Download Votes</h2>
-        <select id="downloadElectionSelect"></select>
-        <button onclick="downloadVotes()">Download CSV</button>
-      </div>
-
-    </div>
+    <h2>Login</h2>
+    <input id="loginEmail" placeholder="Email" />
+    <input id="loginPass" placeholder="Password" type="password" />
+    <button onclick="login()">Login</button>
   </div>
 
-  <script>
-    let token="", role="", chart=null, livePolling=null;
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden">
 
-    async function register(){
-      const res=await fetch("/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:document.getElementById("regName").value,email:document.getElementById("regEmail").value,password:document.getElementById("regPass").value,role:document.getElementById("regRole").value})});
-      const data=await res.json();
-      Swal.fire({icon:data.error?'error':'success',title:data.error?'Error':'Success',text:data.message||data.error});
-    }
+    <div class="card">
+      <h2>Welcome <span id="userRole"></span> (<span id="userEmailDisplay"></span>)</h2>
+      <button onclick="logout()">Logout</button>
+    </div>
 
-    async function login(){
-      const res=await fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:document.getElementById("loginEmail").value,password:document.getElementById("loginPass").value})});
-      const data=await res.json();
-      if(data.token){
-        token=data.token;
-        const payload=JSON.parse(atob(token.split('.')[1]));
-        role=payload.role;
-        document.getElementById("authCard").classList.add("hidden");
-        document.getElementById("dashboard").classList.remove("hidden");
-        document.getElementById("userRole").innerText=role.toUpperCase();
-        setDashboard();
-        Swal.fire({icon:'success',title:'Login Success',text:`Logged in as ${role}`});
-      } else Swal.fire({icon:'error',title:'Login Failed',text:data.error});
-    }
+    <!-- Admin Controls -->
+    <div class="card" id="adminControls">
+      <h2>Create / Edit Election</h2>
+      <select id="adminElectionSelect"><option value="">-- Select Election to Edit --</option></select>
+      <input id="electionName" placeholder="Election Name" />
+      <input id="candidates" placeholder="Candidates (comma separated)" />
+      <button onclick="createOrUpdateElection()">Save Election</button>
+      <p><b>Election ID:</b> <span id="electionId"></span></p>
+    </div>
 
-    function logout(){ token=""; role=""; location.reload(); }
+    <!-- Vote Section -->
+    <div class="card" id="voteCard">
+      <h2>Vote in Election</h2>
+      <select id="voteElectionSelect"></select>
+      <select id="voteCandidateSelect"></select>
+      <button onclick="castVote()">Submit Vote</button>
+    </div>
 
-    function setDashboard(){
-      document.getElementById("adminControls").style.display=role==="admin"?"block":"none";
-      document.getElementById("mineCard").style.display=role==="admin"?"block":"none";
-      document.getElementById("downloadCard").style.display=role==="admin"?"block":"none";
-      loadElections();
-    }
+    <!-- Tally -->
+    <div class="card">
+      <h2>Election Tally</h2>
+      <select id="tallyElectionSelect"></select>
+      <button onclick="getTally()">View Tally</button>
+      <canvas id="tallyChart" width="400" height="200"></canvas>
+      <pre id="tallyResult"></pre>
+    </div>
 
-    async function loadElections(){
-      const res=await fetch("/elections",{headers:{"Authorization":"Bearer "+token}});
-      const elections=await res.json();
-      const voteSelect=document.getElementById("voteElectionSelect");
-      const voteCandidate=document.getElementById("voteCandidateSelect");
-      const tallySelect=document.getElementById("tallyElectionSelect");
-      const downloadSelect=document.getElementById("downloadElectionSelect");
-      [voteSelect,voteCandidate,tallySelect,downloadSelect].forEach(s=>s.innerHTML="");
-      elections.forEach(e=>{
-        voteSelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
-        tallySelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
-        downloadSelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
-      });
-      updateCandidates();
-      voteSelect.onchange=updateCandidates;
-    }
+    <!-- Mine Blockchain -->
+    <div class="card" id="mineCard">
+      <h2>Mine Pending Votes</h2>
+      <button onclick="mine()">Mine Votes</button>
+      <pre id="mineResult"></pre>
+    </div>
 
-    function updateCandidates(){
-      const selected=document.getElementById("voteElectionSelect").value;
-      fetch("/elections",{headers:{"Authorization":"Bearer "+token}}).then(r=>r.json()).then(elections=>{
-        const candidates=elections.find(e=>e.id===selected).candidates;
-        const candSelect=document.getElementById("voteCandidateSelect");
-        candSelect.innerHTML="";
-        candidates.forEach(c=>candSelect.innerHTML+=`<option value="${c}">${c}</option>`);
-      });
-    }
+    <!-- Blockchain -->
+    <div class="card">
+      <h2>Blockchain</h2>
+      <button onclick="getChain()">View Blockchain</button>
+      <pre id="chainResult"></pre>
+    </div>
 
-    async function createElection(){
-      const res=await fetch("/elections",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({name:document.getElementById("electionName").value,candidates:document.getElementById("candidates").value.split(",")})});
-      const data=await res.json();
-      if(data.message) Swal.fire({icon:'success',title:'Success',text:data.message});
-      loadElections();
-    }
+    <!-- Download votes (Admin) -->
+    <div class="card" id="downloadCard">
+      <h2>Download Votes</h2>
+      <select id="downloadElectionSelect"></select>
+      <button onclick="downloadVotes()">Download CSV</button>
+    </div>
 
-    async function castVote(){
-      const electionId=document.getElementById("voteElectionSelect").value;
-      const candidate=document.getElementById("voteCandidateSelect").value;
-      const res=await fetch("/vote",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({electionId,candidate})});
-      const data=await res.json();
-      Swal.fire({icon:data.error?'error':'success',title:data.error?'Error':'Success',text:data.message||data.error});
-      startLiveTally(electionId);
-    }
+  </div>
+</div>
 
-    async function getTally(){
-      const electionId=document.getElementById("tallyElectionSelect").value;
-      const res=await fetch("/tally/"+electionId);
-      const data=await res.json();
-      document.getElementById("tallyResult").innerText=JSON.stringify(data,null,2);
-      const labels=data.map(d=>d.candidate);
-      const votes=data.map(d=>d.votes);
-      if(chart) chart.destroy();
-      const ctx=document.getElementById('tallyChart').getContext('2d');
-      chart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Votes',data:votes,backgroundColor:'rgba(106,17,203,0.7)',borderColor:'rgba(106,17,203,1)',borderWidth:1}]},options:{scales:{y:{beginAtZero:true}}}});
-    }
+<script>
+let token="", role="", chart=null, livePolling=null, socket=null;
 
-    function startLiveTally(electionId){ if(livePolling) clearInterval(livePolling); livePolling=setInterval(()=>getTally(),3000); }
+async function register(){
+  const payload={name:document.getElementById("regName").value,email:document.getElementById("regEmail").value,password:document.getElementById("regPass").value,role:document.getElementById("regRole").value};
+  const res=await fetch("/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  const data=await res.json();
+  Swal.fire({icon:data.error?'error':'success',title:data.error?'Error':'Success',text:data.message||data.error});
+}
 
-    async function mine(){
-      const res=await fetch("/mine",{method:"POST",headers:{"Authorization":"Bearer "+token}});
-      const data=await res.json();
-      document.getElementById("mineResult").innerText=JSON.stringify(data,null,2);
-      getChain();
-    }
+async function login(){
+  const payload={email:document.getElementById("loginEmail").value,password:document.getElementById("loginPass").value};
+  const res=await fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  const data=await res.json();
+  if(data.token){
+    token=data.token;
+    localStorage.setItem("token",token);
+    const payloadDecoded=JSON.parse(atob(token.split('.')[1]));
+    role=payloadDecoded.role;
+    document.getElementById("userEmailDisplay").innerText=payloadDecoded.email;
+    document.getElementById("authCard").classList.add("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+    document.getElementById("userRole").innerText=role.toUpperCase();
+    setDashboard();
+    initSocket();
+    Swal.fire({icon:'success',title:'Login Success',text:`Logged in as ${role}`});
+  } else Swal.fire({icon:'error',title:'Login Failed',text:data.error});
+}
 
-    async function getChain(){
-      const res=await fetch("/chain");
-      const data=await res.json();
-      document.getElementById("chainResult").innerText=JSON.stringify(data,null,2);
-    }
+function logout(){
+  token=""; role="";
+  localStorage.removeItem("token");
+  location.reload();
+}
 
-    async function downloadVotes(){
-      const electionId=document.getElementById("downloadElectionSelect").value;
-      const res=await fetch("/votes/download/"+electionId,{headers:{"Authorization":"Bearer "+token}});
-      const data=await res.json();
-      if(data.error){ Swal.fire({icon:'error',title:'Error',text:data.error}); return; }
-      const csv="data:text/csv;charset=utf-8,"+["UserEmail,Election,Candidate,Time"].concat(data.map(v=>`${v.userEmail},${v.electionName},${v.candidate},${v.timestamp}`)).join("\n");
-      const encoded=encodeURI(csv);
-      const link=document.createElement("a");
-      link.setAttribute("href",encoded);
-      link.setAttribute("download","votes.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  </script>
+function setDashboard(){
+  document.getElementById("adminControls").style.display=role==="admin"?"block":"none";
+  document.getElementById("mineCard").style.display=role==="admin"?"block":"none";
+  document.getElementById("downloadCard").style.display=role==="admin"?"block":"none";
+  loadElections();
+}
+
+async function loadElections(){
+  const res=await fetch("/elections",{headers:{"Authorization":"Bearer "+token}});
+  const elections=await res.json();
+  const voteSelect=document.getElementById("voteElectionSelect");
+  const voteCandidate=document.getElementById("voteCandidateSelect");
+  const tallySelect=document.getElementById("tallyElectionSelect");
+  const downloadSelect=document.getElementById("downloadElectionSelect");
+  const adminSelect=document.getElementById("adminElectionSelect");
+  [voteSelect,voteCandidate,tallySelect,downloadSelect,adminSelect].forEach(s=>s.innerHTML="");
+  adminSelect.innerHTML='<option value="">-- Select Election to Edit --</option>';
+  elections.forEach(e=>{
+    voteSelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
+    tallySelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
+    downloadSelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
+    adminSelect.innerHTML+=`<option value="${e.id}">${e.name}</option>`;
+  });
+  updateCandidates();
+  voteSelect.onchange=updateCandidates;
+  adminSelect.onchange=()=>{const selected=elections.find(e=>e.id===adminSelect.value); if(selected){document.getElementById("electionName").value=selected.name; document.getElementById("candidates").value=selected.candidates.join(","); document.getElementById("electionId").innerText=selected.id;} else {document.getElementById("electionName").value=""; document.getElementById("candidates").value=""; document.getElementById("electionId").innerText="";}};
+}
+
+function updateCandidates(){
+  const selected=document.getElementById("voteElectionSelect").value;
+  fetch("/elections",{headers:{"Authorization":"Bearer "+token}}).then(r=>r.json()).then(elections=>{
+    const candidates=elections.find(e=>e.id===selected).candidates;
+    const candSelect=document.getElementById("voteCandidateSelect");
+    candSelect.innerHTML="";
+    candidates.forEach(c=>candSelect.innerHTML+=`<option value="${c}">${c}</option>`);
+  });
+}
+
+async function createOrUpdateElection(){
+  const id=document.getElementById("electionId").innerText;
+  const name=document.getElementById("electionName").value;
+  const candidates=document.getElementById("candidates").value.split(",");
+  if(id){
+    // Update election: simple approach, delete & recreate
+    await fetch("/elections",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({name,candidates})});
+    Swal.fire({icon:'success',title:'Updated',text:'Election updated'}); 
+  } else {
+    const res=await fetch("/elections",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({name,candidates})});
+    const data=await res.json();
+    if(data.message) Swal.fire({icon:'success',title:'Created',text:data.message});
+  }
+  document.getElementById("electionId").innerText="";
+  loadElections();
+}
+
+async function castVote(){
+  const electionId=document.getElementById("voteElectionSelect").value;
+  const candidate=document.getElementById("voteCandidateSelect").value;
+  const res=await fetch("/vote",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({electionId,candidate})});
+  const data=await res.json();
+  Swal.fire({icon:data.error?'error':'success',title:data.error?'Error':'Success',text:data.message||data.error});
+  startLiveTally(electionId);
+}
+
+async function getTally(){
+  const electionId=document.getElementById("tallyElectionSelect").value;
+  const res=await fetch("/tally/"+electionId);
+  const data=await res.json();
+  document.getElementById("tallyResult").innerText=JSON.stringify(data,null,2);
+  const labels=data.map(d=>d.candidate);
+  const votes=data.map(d=>d.votes);
+  if(chart) chart.destroy();
+  const ctx=document.getElementById('tallyChart').getContext('2d');
+  chart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Votes',data:votes,backgroundColor:'rgba(106,17,203,0.7)',borderColor:'rgba(106,17,203,1)',borderWidth:1}]},options:{scales:{y:{beginAtZero:true}}}});
+}
+
+function startLiveTally(electionId){ if(livePolling) clearInterval(livePolling); livePolling=setInterval(()=>getTally(),3000); }
+
+async function mine(){
+  const res=await fetch("/mine",{method:"POST",headers:{"Authorization":"Bearer "+token}});
+  const data=await res.json();
+  document.getElementById("mineResult").innerText=JSON.stringify(data,null,2);
+  getChain();
+}
+
+async function getChain(){
+  const res=await fetch("/chain");
+  const data=await res.json();
+  document.getElementById("chainResult").innerText=JSON.stringify(data,null,2);
+}
+
+async function downloadVotes(){
+  const electionId=document.getElementById("downloadElectionSelect").value;
+  const res=await fetch("/votes/download/"+electionId,{headers:{"Authorization":"Bearer "+token}});
+  const data=await res.json();
+  if(data.error){ Swal.fire({icon:'error',title:'Error',text:data.error}); return; }
+  const csv="data:text/csv;charset=utf-8,"+["UserEmail,Election,Candidate,Time"].concat(data.map(v=>`${v.userEmail},${v.electionName},${v.candidate},${v.timestamp}`)).join("\n");
+  const encoded=encodeURI(csv);
+  const link=document.createElement("a");
+  link.setAttribute("href",encoded);
+  link.setAttribute("download","votes.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// --- Socket.IO ---
+function initSocket(){
+  try{
+    socket=io();
+    socket.on("connect",()=>console.log("Socket connected:",socket.id));
+    socket.on("disconnect",()=>console.log("Socket disconnected"));
+    socket.on("voteUpdate",({electionId})=>{ const current=document.getElementById("tallyElectionSelect").value; if(current===electionId) getTally(); });
+    socket.on("mineUpdate",({block})=>{ getChain(); const current=document.getElementById("tallyElectionSelect").value; if(current) getTally(); document.getElementById("mineResult").innerText=JSON.stringify(block,null,2); });
+  } catch(e){ console.error("Socket init error",e); }
+}
+
+// Auto-login from localStorage
+(function(){
+  const savedToken=localStorage.getItem("token");
+  if(savedToken){
+    token=savedToken;
+    try{
+      const payloadDecoded=JSON.parse(atob(token.split('.')[1]));
+      role=payloadDecoded.role;
+      document.getElementById("userEmailDisplay").innerText=payloadDecoded.email||'';
+      document.getElementById("authCard").classList.add("hidden");
+      document.getElementById("dashboard").classList.remove("hidden");
+      document.getElementById("userRole").innerText=role.toUpperCase();
+      initSocket();
+      setDashboard();
+    } catch(e){ token=""; localStorage.removeItem("token"); }
+  }
+})();
+  
+</script>
+<!-- The socket is already initialized and handled in the main script above. 
+     Remove duplicate socket initialization to avoid redeclaration errors. -->
+
 </body>
 </html>
