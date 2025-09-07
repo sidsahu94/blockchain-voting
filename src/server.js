@@ -55,8 +55,13 @@ let db;
     );
   `);
 
-  // Ensure 'candidates' column exists (safe for old DBs)
-  await db.run(`ALTER TABLE elections ADD COLUMN candidates TEXT`).catch(err => {});
+  // Auto-upgrade: add 'candidates' column if missing
+  const pragma = await db.all("PRAGMA table_info(elections)");
+  const hasCandidates = pragma.some(col => col.name === "candidates");
+  if (!hasCandidates) {
+    await db.exec("ALTER TABLE elections ADD COLUMN candidates TEXT");
+    console.log("✅ 'candidates' column added to elections table");
+  }
 })();
 
 // Blockchain
@@ -72,7 +77,6 @@ class Block {
     return `${this.index}${this.timestamp}${JSON.stringify(this.data)}${this.previousHash}`;
   }
 }
-
 class Blockchain {
   constructor() {
     this.chain = [this.createGenesisBlock()];
@@ -102,7 +106,6 @@ class Blockchain {
     return block;
   }
 }
-
 const votingBlockchain = new Blockchain();
 
 // Auth middleware
@@ -147,19 +150,17 @@ app.post("/auth/login", async (req, res) => {
 // Elections
 app.get("/elections", authenticateToken, async (req, res) => {
   const rows = await db.all("SELECT * FROM elections");
-  res.json(rows.map(r => ({
-    ...r,
-    candidates: safeParse(r.candidates)
-  })));
+  res.json(rows.map(r => ({ ...r, candidates: safeParse(r.candidates) })));
 });
 
 app.post("/elections", authenticateToken, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ error: "Only admin" });
   const { name, candidates } = req.body;
-  await db.run(
-    "INSERT INTO elections (id,name,candidates) VALUES (?,?,?)",
-    [uuidv4(), name, JSON.stringify(candidates)]
-  );
+  await db.run("INSERT INTO elections (id,name,candidates) VALUES (?,?,?)", [
+    uuidv4(),
+    name,
+    JSON.stringify(candidates)
+  ]);
   res.json({ message: "Election created" });
 });
 
