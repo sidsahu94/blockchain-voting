@@ -8,6 +8,7 @@ import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
+import fs from "fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -25,36 +26,44 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.static(path.join(process.cwd(), "public")));
 
-// Database
+// Database with auto-create
 let db;
 (async () => {
+  const dbFile = process.env.DB_FILE || "./voting.db";
+  const dbExists = fs.existsSync(dbFile);
+
   db = await open({
-    filename: process.env.DB_FILE || "./voting.db",
+    filename: dbFile,
     driver: sqlite3.Database
   });
 
-  // Auto-create tables if missing
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT UNIQUE,
-      password TEXT,
-      role TEXT DEFAULT 'voter'
-    );
-    CREATE TABLE IF NOT EXISTS elections (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      candidates TEXT
-    );
-    CREATE TABLE IF NOT EXISTS votes (
-      id TEXT PRIMARY KEY,
-      electionId TEXT,
-      candidate TEXT,
-      userId TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+  // Auto-create tables if DB is new
+  if (!dbExists) {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        password TEXT,
+        role TEXT DEFAULT 'voter'
+      );
+      CREATE TABLE IF NOT EXISTS elections (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        candidates TEXT
+      );
+      CREATE TABLE IF NOT EXISTS votes (
+        id TEXT PRIMARY KEY,
+        electionId TEXT,
+        candidate TEXT,
+        userId TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("✅ New voting.db created with tables.");
+  } else {
+    console.log("✅ Existing voting.db loaded.");
+  }
 })();
 
 // Blockchain
@@ -70,6 +79,7 @@ class Block {
     return `${this.index}${this.timestamp}${JSON.stringify(this.data)}${this.previousHash}`;
   }
 }
+
 class Blockchain {
   constructor() {
     this.chain = [this.createGenesisBlock()];
@@ -99,6 +109,7 @@ class Blockchain {
     return block;
   }
 }
+
 const votingBlockchain = new Blockchain();
 
 // Auth middleware
@@ -143,10 +154,7 @@ app.post("/auth/login", async (req, res) => {
 // Elections
 app.get("/elections", authenticateToken, async (req, res) => {
   const rows = await db.all("SELECT * FROM elections");
-  res.json(rows.map(r => ({
-    ...r,
-    candidates: safeParse(r.candidates)
-  })));
+  res.json(rows.map(r => ({ ...r, candidates: safeParse(r.candidates) })));
 });
 
 app.post("/elections", authenticateToken, async (req, res) => {
