@@ -33,6 +33,7 @@ let db;
     driver: sqlite3.Database
   });
 
+  // Auto-create tables if missing
   await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -142,7 +143,10 @@ app.post("/auth/login", async (req, res) => {
 // Elections
 app.get("/elections", authenticateToken, async (req, res) => {
   const rows = await db.all("SELECT * FROM elections");
-  res.json(rows.map(r => ({ ...r, candidates: JSON.parse(r.candidates) })));
+  res.json(rows.map(r => ({
+    ...r,
+    candidates: safeParse(r.candidates)
+  })));
 });
 
 app.post("/elections", authenticateToken, async (req, res) => {
@@ -169,10 +173,7 @@ app.post("/vote", authenticateToken, async (req, res) => {
     [uuidv4(), electionId, candidate, req.user.id]
   );
   votingBlockchain.pendingVotes.push({ electionId, candidate, userId: req.user.id });
-
-  // Emit live tally update via socket.io
-  io.emit("voteCast", { electionId, candidate });
-
+  io.emit("voteUpdate", { electionId });
   res.json({ message: "Vote submitted" });
 });
 
@@ -190,13 +191,14 @@ app.post("/mine", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ error: "Only admin can mine" });
   const block = votingBlockchain.minePendingVotes();
   if (!block) return res.json({ message: "No pending votes" });
+  io.emit("mineUpdate", { block });
   res.json({ message: "Block mined", block });
 });
 
 // Blockchain
 app.get("/chain", (req, res) => res.json(votingBlockchain.chain));
 
-// Get votes for user
+// Votes
 app.get("/votes/me", authenticateToken, async (req, res) => {
   const rows = await db.all(
     "SELECT v.*,e.name as electionName FROM votes v JOIN elections e ON v.electionId=e.id WHERE v.userId=?",
@@ -205,7 +207,6 @@ app.get("/votes/me", authenticateToken, async (req, res) => {
   res.json(rows);
 });
 
-// Admin download votes
 app.get("/votes/download/:id", authenticateToken, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ error: "Only admin" });
   const rows = await db.all(
@@ -214,6 +215,12 @@ app.get("/votes/download/:id", authenticateToken, async (req, res) => {
   );
   res.json(rows);
 });
+
+// Safe JSON parse
+function safeParse(str) {
+  try { return JSON.parse(str); } 
+  catch { return []; }
+}
 
 // Start server
 httpServer.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
